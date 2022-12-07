@@ -1,8 +1,3 @@
-import io.deepmedia.tools.publisher.common.GithubScm
-import io.deepmedia.tools.publisher.common.License
-import io.deepmedia.tools.publisher.common.Release
-import io.deepmedia.tools.publisher.sonatype.Sonatype
-
 plugins {
     id("com.android.library")
     id("kotlin-android")
@@ -12,10 +7,10 @@ plugins {
 android {
     setCompileSdkVersion(property("compileSdkVersion") as Int)
     defaultConfig {
-        setMinSdkVersion(property("minSdkVersion") as Int)
-        setTargetSdkVersion(property("targetSdkVersion") as Int)
-        versionCode = 1
-        versionName = "0.10.3"
+//        setMinSdkVersion(property("minSdkVersion") as Int)
+//        setTargetSdkVersion(property("targetSdkVersion") as Int)
+//        versionCode = 1
+//        versionName = "0.10.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes["release"].isMinifyEnabled = false
@@ -25,9 +20,9 @@ android {
 }
 
 dependencies {
-    api("com.otaliastudios.opengl:egloo:0.6.0")
-    api("androidx.annotation:annotation:1.1.0")
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
+    api("com.otaliastudios.opengl:egloo:0.6.1")
+    api("androidx.annotation:annotation:1.5.0")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
 
     androidTestImplementation("androidx.test:runner:1.3.0")
     androidTestImplementation("androidx.test:rules:1.3.0")

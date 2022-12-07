@@ -10,7 +10,7 @@ public class BitRates {
     // For AVC this should be a reasonable default.
     // https://stackoverflow.com/a/5220554/4288782
     public static long estimateVideoBitRate(int width, int height, int frameRate) {
-        return (long) (0.07F * 2 * width * height * frameRate);
+        return (long) (0.07F * 4 * width * height * frameRate);
     }
 
     // Wildly assuming a 0.75 compression rate for AAC.

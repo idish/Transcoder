@@ -32,7 +32,8 @@ class VideoRenderer(
     // frame drawer needs EGL context which is not created by us, so let's use by lazy.
     private val frameDrawer by lazy {
         val drawer = FrameDrawer()
-        drawer.setFlipY(flipY)
+        // flip y if we rotate by 180 (this should happen only when facing front camera
+        drawer.setFlipY(extraRotation == 180 || flipY)
         drawer
     }
 
