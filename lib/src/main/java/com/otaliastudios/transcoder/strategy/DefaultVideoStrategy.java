@@ -248,7 +248,10 @@ public class DefaultVideoStrategy implements TrackStrategy {
         int outFrameRate;
         int inputFrameRate = getMinFrameRate(inputFormats);
         if (inputFrameRate > 0) {
-            outFrameRate = Math.min(inputFrameRate, options.targetFrameRate);
+            outFrameRate = Math.max(inputFrameRate, options.targetFrameRate);
+            if (outFrameRate > 60) {
+                outFrameRate = 60;
+            }
         } else {
             outFrameRate = options.targetFrameRate;
         }
@@ -349,6 +352,7 @@ public class DefaultVideoStrategy implements TrackStrategy {
         int frameRate = Integer.MAX_VALUE;
         for (MediaFormat format : formats) {
             if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                LOG.i("found frame rate: " + format.getInteger(MediaFormat.KEY_FRAME_RATE));
                 frameRate = Math.min(frameRate, format.getInteger(MediaFormat.KEY_FRAME_RATE));
             }
         }
