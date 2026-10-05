@@ -1,44 +1,32 @@
-@file:Suppress("MagicNumber")
-
 package com.otaliastudios.transcoder.internal.video
-
-import com.otaliastudios.transcoder.internal.utils.Logger
 
 interface FrameDropper {
     fun shouldRender(timeUs: Long): Boolean
 }
 
-/**
- * A very simple dropper, from
- * https://stackoverflow.com/questions/4223766/dropping-video-frames
- */
-fun frameDropper(inputFps: Int, outputFps: Int) = object : FrameDropper {
+/** Selects existing frames on an output-rate grid without synthesizing frames. */
+fun frameDropper(inputFps: Int, outputFps: Int): FrameDropper {
+    require(inputFps > 0 && outputFps > 0) { "Frame rates must be positive" }
+    return object : FrameDropper {
+        private var firstTimeUs: Long? = null
+        private var lastRenderedTimeUs = Long.MIN_VALUE
+        private var nextFrame = 1L
 
-    private val log = Logger("FrameDropper")
-    private val inputSpf = 1.0 / inputFps
-    private val outputSpf = 1.0 / outputFps
-    private var currentSpf = 0.0
-    private var frameCount = 0
-    private var previousTs = 0.0
-
-    override fun shouldRender(timeUs: Long): Boolean {
-        val timeS = timeUs / 1000.0 / 1000.0
-        currentSpf += timeS - previousTs
-        previousTs = timeS
-        return when {
-            frameCount++ == 0 -> {
-                log.v("RENDERING (first frame) - currentSpf=$currentSpf inputSpf=$inputSpf outputSpf=$outputSpf")
-                true
+        override fun shouldRender(timeUs: Long): Boolean {
+            val first = firstTimeUs
+            if (first == null) {
+                firstTimeUs = timeUs
+                lastRenderedTimeUs = timeUs
+                return true
             }
-            currentSpf > outputSpf -> {
-                currentSpf -= outputSpf
-                log.v("RENDERING - currentSpf=$currentSpf inputSpf=$inputSpf outputSpf=$outputSpf")
-                true
-            }
-            else -> {
-                log.v("DROPPING - currentSpf=$currentSpf inputSpf=$inputSpf outputSpf=$outputSpf")
-                false
-            }
+            if (timeUs <= lastRenderedTimeUs) return false
+            // Permit microsecond quantization without accumulating floating-point error.
+            val elapsedRateUnits = (timeUs - first + 1L) * outputFps
+            if (elapsedRateUnits < nextFrame * 1_000_000L) return false
+            lastRenderedTimeUs = timeUs
+            // Skip empty intervals after a source gap instead of emitting a catch-up burst.
+            nextFrame = elapsedRateUnits / 1_000_000L + 1L
+            return true
         }
     }
 }

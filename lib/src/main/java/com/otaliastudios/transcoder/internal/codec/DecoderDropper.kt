@@ -19,9 +19,8 @@ import com.otaliastudios.transcoder.source.DataSource
  *
  * The second feature can be disabled by setting the [continuous] boolean to false.
  *
- * NOTE: we assumes that the [input] timestamps are monotonic. If they are not, everything
- * is screwed. Also, if the source jumps forward using seek, we won't catch the jump. This class
- * catches discontinuities only through changes in the render boolean passed to [input].
+ * Render ranges track their timestamp bounds even when codec packets are reordered.
+ * Source seek discontinuities still need changes in the render boolean passed to [input].
  */
 class DecoderDropper(private val continuous: Boolean) {
 
@@ -48,8 +47,14 @@ class DecoderDropper(private val continuous: Boolean) {
         if (render) {
             debug("INPUT: inputUs=$timeUs")
             // log.v("TDBG inputUs=$timeUs")
-            pendingRange = if (pendingRange == null) timeUs..Long.MAX_VALUE
-            else pendingRange!!.first.coerceAtMost(timeUs)..timeUs
+            val previous = pendingRange
+            pendingRange = if (previous == null) {
+                timeUs..Long.MAX_VALUE
+            } else {
+                // Decode-order packets must not shrink the accepted presentation range.
+                val previousEnd = if (previous.last == Long.MAX_VALUE) previous.first else previous.last
+                minOf(previous.first, timeUs)..maxOf(previousEnd, timeUs)
+            }
         } else {
             debug("INPUT: Got SKIPPING input! inputUs=$timeUs")
             if (pendingRange != null && pendingRange!!.last != Long.MAX_VALUE) {
