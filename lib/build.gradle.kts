@@ -16,25 +16,24 @@ android {
     buildFeatures {
         buildConfig = true
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+
     namespace = "com.otaliastudios.transcoder"
 }
 
 dependencies {
     api("com.otaliastudios.opengl:egloo:0.6.1")
-    api("androidx.annotation:annotation:1.5.0")
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+    api("androidx.annotation:annotation:1.9.1")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     androidTestImplementation("androidx.test:runner:1.3.0")
     androidTestImplementation("androidx.test:rules:1.3.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.2")
     androidTestImplementation("org.mockito:mockito-android:2.28.2")
 }
-
 /*
 publisher {
     project.description = "Accelerated video transcoding using Android MediaCodec API without native code (no LGPL/patent issues)."
