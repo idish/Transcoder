@@ -76,6 +76,11 @@ public class DataSourceWrapper implements DataSource {
     }
 
     @Override
+    public long peekPositionUs() {
+        return mSource.peekPositionUs();
+    }
+
+    @Override
     public boolean isDrained() {
         return mSource.isDrained();
     }

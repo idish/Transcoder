@@ -57,7 +57,43 @@ class Timer(
         }
     }
 
-    private val interpolators = mutableMapOf<Pair<TrackType, Int>, TimeInterpolator>()
+    private val interpolators = mutableMapOf<Pair<TrackType, Int>, SourceInterpolator>()
+
+    /** Lays one source's timestamps after the previous source's. */
+    private inner class SourceInterpolator(private val index: Int, private val type: TrackType) : TimeInterpolator {
+        var lastOut = 0L
+            private set
+
+        /** Time between this source's last two frames (or audio buffers); 0 until there are two. */
+        var lastStepOut = 0L
+            private set
+
+        private var firstIn = Long.MAX_VALUE
+        private var count = 0
+
+        // A source's first frame comes one frame after the previous source's last one, as the next
+        // frame of a single source would. It used to come 10 us after it, so the last frame was
+        // never on screen and a frame-rate limit (fresh for each source) dropped the frame after:
+        // a visible skip where a boomerang's forward clip hands over to the reversed one.
+        private val firstOut = when (index) {
+            0 -> 0L
+            else -> {
+                val previous = interpolators[type to index - 1]!!
+                previous.lastOut + previous.lastStepOut.coerceAtLeast(MIN_SOURCE_GAP_US)
+            }
+        }
+
+        override fun interpolate(type: TrackType, time: Long): Long = when (time) {
+            Long.MAX_VALUE -> lastOut
+            else -> {
+                if (firstIn == Long.MAX_VALUE) firstIn = time
+                val out = firstOut + (time - firstIn)
+                if (count++ > 0 && out > lastOut) lastStepOut = out - lastOut
+                lastOut = out
+                interpolator.interpolate(type, out)
+            }
+        }
+    }
 
     fun localize(type: TrackType, index: Int, positionUs: Long): Long? {
         if (!tracks.active.has(type)) return null
@@ -68,28 +104,11 @@ class Timer(
         return if (localizedUs < 0L || localizedUs > sources[type][index].durationUs) null else localizedUs
     }
 
-    fun interpolator(type: TrackType, index: Int) = interpolators.getOrPut(type to index) {
-        object : TimeInterpolator {
+    fun interpolator(type: TrackType, index: Int): TimeInterpolator =
+        interpolators.getOrPut(type to index) { SourceInterpolator(index, type) }
 
-            private var lastOut = 0L
-            private var firstIn = Long.MAX_VALUE
-            private val firstOut = when {
-                index == 0 -> 0L
-                else -> {
-                    // Add 10 just so they're not identical.
-                    val previous = interpolators[type to index - 1]!!
-                    previous.interpolate(type, Long.MAX_VALUE) + 10L
-                }
-            }
-
-            override fun interpolate(type: TrackType, time: Long) = when (time) {
-                Long.MAX_VALUE -> lastOut
-                else -> {
-                    if (firstIn == Long.MAX_VALUE) firstIn = time
-                    lastOut = firstOut + (time - firstIn)
-                    interpolator.interpolate(type, lastOut)
-                }
-            }
-        }
+    private companion object {
+        /** Without a step to go by (a one-frame source): just so the timestamps aren't identical. */
+        const val MIN_SOURCE_GAP_US = 10L
     }
 }

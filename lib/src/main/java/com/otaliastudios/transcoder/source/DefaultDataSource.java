@@ -319,6 +319,13 @@ public abstract class DefaultDataSource implements DataSource {
     }
 
     @Override
+    public long peekPositionUs() {
+        if (!isInitialized()) return -1;
+        long next = mExtractor.getSampleTime();
+        return next < 0 ? -1 : next - mOriginUs;
+    }
+
+    @Override
     public long getPositionUs() {
         if (!isInitialized()) return 0;
 

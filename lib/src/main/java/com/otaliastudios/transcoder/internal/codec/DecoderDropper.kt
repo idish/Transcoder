@@ -55,6 +55,12 @@ class DecoderDropper(private val continuous: Boolean) {
                 val previousEnd = if (previous.last == Long.MAX_VALUE) previous.first else previous.last
                 minOf(previous.first, timeUs)..maxOf(previousEnd, timeUs)
             }
+        } else if (pendingRange != null && timeUs < pendingRange!!.first) {
+            // Displays before everything in the open range, so it isn't a gap inside it: with
+            // B-frames, the frames just before a trim start are stored after frames that follow
+            // it. Closing here split the range, and the next range's delta (negative) moved a
+            // frame out of place and shifted the rest. Output drops it anyway: it's in no range.
+            debug("INPUT: Got SKIPPING input before the open range. inputUs=$timeUs")
         } else {
             debug("INPUT: Got SKIPPING input! inputUs=$timeUs")
             if (pendingRange != null && pendingRange!!.last != Long.MAX_VALUE) {

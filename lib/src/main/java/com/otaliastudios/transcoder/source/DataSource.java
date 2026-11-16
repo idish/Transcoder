@@ -100,6 +100,14 @@ public interface DataSource {
     long getPositionUs();
 
     /**
+     * Returns the position the next {@link #readTrack(Chunk)} will report, on the same scale as
+     * {@link #getPositionUs()}, without reading it; or -1 when unknown. Lets a trim end keep reading
+     * frames that are stored after a later one but display before it (B-frames).
+     * @return position of the next sample in us, or -1
+     */
+    default long peekPositionUs() { return -1; }
+
+    /**
      * When this source has been totally read, it can return true here to
      * notify an end of input stream.
      *

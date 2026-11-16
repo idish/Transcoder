@@ -1,5 +1,6 @@
 package com.otaliastudios.transcoder.internal.pipeline
 
+import com.otaliastudios.transcoder.internal.codec.Encoder
 import com.otaliastudios.transcoder.internal.utils.Logger
 
 internal typealias AnyStep = Step<Any, Channel, Any, Channel>
@@ -16,8 +17,45 @@ class Pipeline private constructor(name: String, private val chain: List<AnyStep
         }
     }
 
+    /** The encoder: fed once per pass, but it hands back one output per drain. -1 without one (thumbnails). */
+    private val tailIndex = chain.indexOfLast { it is Encoder }
+
     // Returns Eos, Ok or Wait
     fun execute(): State<Unit> {
+        val result = executeChain()
+        if (result is State.Eos || headIndex != 0) return result
+        return if (drainReadyTail()) State.Eos(Unit) else result
+    }
+
+    /**
+     * Every pass draws one frame into the encoder but takes at most one output from it, so each pass
+     * where the encoder isn't ready yet leaves an output behind for good. Once those fill the codec's
+     * output buffers it stops taking input, and the next frame draw (a dequeue on the encoder's input
+     * surface) blocks forever: the share export hung this way on long 1080p clips, which drop no frames
+     * to catch up on. Take every output that is already ready. Only before EOS reaches the pipeline, so
+     * end-of-stream handling stays as it was. Returns whether the tail reached EOS.
+     */
+    private fun drainReadyTail(): Boolean {
+        if (tailIndex < 0) return false
+        repeat(MAX_TAIL_DRAINS) {
+            var state = executeStep(headState, chain[tailIndex], fresh = false) ?: return false
+            if (state is State.Eos) {
+                headState = state
+                headIndex = tailIndex + 1
+            }
+            for (index in tailIndex + 1 until chain.size) {
+                state = executeStep(state, chain[index], fresh = true) ?: return false
+                if (state is State.Eos) {
+                    headState = state
+                    headIndex = index + 1
+                }
+            }
+            if (state is State.Eos) return true
+        }
+        return false
+    }
+
+    private fun executeChain(): State<Unit> {
         log.v("execute(): starting. head=$headIndex steps=${chain.size} remaining=${chain.size - headIndex}")
         val head = headIndex
         var state = headState
@@ -62,6 +100,9 @@ class Pipeline private constructor(name: String, private val chain: List<AnyStep
     }
 
     companion object {
+        /** More than any codec keeps outputs in flight; only a bound against a misbehaving codec. */
+        private const val MAX_TAIL_DRAINS = 64
+
         @Suppress("UNCHECKED_CAST")
         fun build(
             name: String,

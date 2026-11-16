@@ -18,6 +18,8 @@ public class TrimDataSource extends DataSourceWrapper {
     private long extraDurationUs = 0;
     private long trimDurationUs = Long.MIN_VALUE;
     private boolean trimDone = false;
+    // The furthest position read so far: in decode order positions go back and forth (B-frames).
+    private long maxReadPositionUs = Long.MIN_VALUE;
 
     @SuppressWarnings("WeakerAccess")
     public TrimDataSource(@NonNull DataSource source, long trimStartUs) {
@@ -44,6 +46,7 @@ public class TrimDataSource extends DataSourceWrapper {
         super.deinitialize();
         trimDurationUs = Long.MIN_VALUE;
         trimDone = false;
+        maxReadPositionUs = Long.MIN_VALUE;
     }
 
     @Override
@@ -101,19 +104,35 @@ public class TrimDataSource extends DataSourceWrapper {
     public void readTrack(@NonNull Chunk chunk) {
         super.readTrack(chunk);
         chunk.timeUs = chunk.timeUs - trimStartUs;
+        maxReadPositionUs = Math.max(maxReadPositionUs, getPositionUs());
+    }
+
+    @Override
+    public long peekPositionUs() {
+        long next = super.peekPositionUs();
+        return next < 0 ? -1 : next - trimStartUs + extraDurationUs;
     }
 
     @Override
     public boolean isDrained() {
         // Enforce the trim end: this works thanks to the fact that extraDurationUs is added
         // to the duration, otherwise it would fail for videos with sparse keyframes.
-        return super.isDrained() || getPositionUs() >= getDurationUs();
+        if (super.isDrained()) return true;
+        long endUs = getDurationUs();
+        if (maxReadPositionUs < endUs && getPositionUs() < endUs) return false;
+        // With B-frames, the first frame past the end is stored before frames that display
+        // before it, and those reference it. Stopping at it dropped them, leaving a gap of
+        // several frames before the end (a stall where a boomerang turns around). Keep reading
+        // while the next frame still displays before the furthest one read.
+        long nextUs = peekPositionUs();
+        return nextUs < 0 || nextUs >= maxReadPositionUs;
     }
 
     @Override
     public long seekTo(long desiredPositionUs) {
         // our 0 is the wrapped source's trimStartUs
         // TODO should we update extraDurationUs?
+        maxReadPositionUs = Long.MIN_VALUE;
         long superDesiredUs = trimStartUs + desiredPositionUs;
         long superReceivedUs = getSource().seekTo(superDesiredUs);
         return superReceivedUs - trimStartUs;

@@ -74,8 +74,11 @@ class DefaultTranscodeEngine(
         val sources = dataSources[type]
         val source = sources[index].forcingEos {
             // Enforce EOS if we exceed duration of other tracks,
-            // with a little tolerance.
-            timer.positionUs[type] > timer.totalDurationUs + 100L
+            // with a little tolerance. Only when another track is the shorter one: a track's own
+            // sources know where they end, and cutting at the first frame read past the end drops
+            // the B-frames stored after it (see TrimDataSource.isDrained).
+            val totalUs = timer.totalDurationUs + 100L
+            timer.durationUs[type] > totalUs && timer.positionUs[type] > totalUs
         }
         val sink = dataSink.ignoringEos { index < sources.lastIndex }
         if (pipelineFactory != null) {
